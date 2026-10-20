@@ -219,7 +219,16 @@ async def bearbeite(draht, anfrage):
     z["gehalten"].append({"id": nid, "key": nkey, "titel": titel, "zeit": time.time()})
     zustand_speichern(z)
     br = bruecke_umstellen(alt_key, nkey or "")
-    melde(f"[Staffel] „{titel}“ gestartet, Protokoll {prot.name}.{br}")
+    zu = ""
+    if alt and alt.get("id"):
+        # Die erschöpfte Sitzung schließen (Verlauf bleibt gespeichert). Sonst wecken Hintergrundmeldungen sie weiter,
+        # und sie arbeitet parallel zur Folgesitzung.
+        try:
+            await draht.rpc("session.close", {"session_id": alt["id"]})
+            zu = " Alte Sitzung geschlossen (Verlauf bleibt)."
+        except Exception as e:  # noqa: BLE001
+            zu = f" Alte Sitzung NICHT geschlossen: {e}"
+    melde(f"[Staffel] „{titel}“ gestartet, Protokoll {prot.name}.{br}{zu}")
     verschiebe(anfrage, "erledigt", f"gestartet {nkey}")
     return "ok"
 

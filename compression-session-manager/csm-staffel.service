@@ -1,0 +1,15 @@
+# systemd-User-Dienst für den Staffel-Dienst (Tandem zum Plugin).
+# Einbau:  cp csm-staffel.service ~/.config/systemd/user/  →  Pfad zu Python anpassen  →
+#          systemctl --user daemon-reload && systemctl --user enable --now csm-staffel.service
+[Unit]
+Description=Compression- and Session Manager: Staffel-Dienst (Folgesitzung nach erschöpfter Sitzung)
+After=hermes-serve.service
+
+[Service]
+# Python von Hermes (braucht websockets + yaml), z. B. ~/.hermes/hermes-agent/venv/bin/python
+ExecStart=%h/.hermes/hermes-agent/venv/bin/python %h/.hermes/plugins/compression-session-manager/staffel.py
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=default.target

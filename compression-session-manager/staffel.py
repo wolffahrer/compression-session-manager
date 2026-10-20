@@ -238,6 +238,7 @@ async def lauf(einmal=False):
                 except Exception as e:  # noqa: BLE001
                     log("Fehler bei", anfrage.name, e)
                     verschiebe(anfrage, "fehler", f"Ausnahme: {e}")
+                    melde(f"[Staffel] Folgesitzung NICHT gestartet ({anfrage.name}): {e}. Bitte selbst übernehmen.")
         except Exception as e:  # noqa: BLE001
             log("Schleife:", e)
             draht.ws = None

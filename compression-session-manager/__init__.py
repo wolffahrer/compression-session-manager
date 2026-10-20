@@ -219,6 +219,10 @@ def _on_session_end(session_id="", completed=False, interrupted=False, failed=Fa
             e = z.get(session_id)
             if not e or not e.get("erschoepft") or e.get("staffel_angefragt"):
                 return None
+            if not e.get("staffel_auto"):
+                # Der Hinweis hat „Mensch öffnet selbst“ gesagt (Dienst lief in dem Moment nicht, z. B. eingefroren):
+                # dann keine Anfrage, sonst gäbe es nach dem Auftauen eine zweite Übergabe.
+                return None
             anfragen = _pfad("staffel_ordner") / "anfragen"
             anfragen.mkdir(parents=True, exist_ok=True)
             datei = anfragen / f"{int(time.time())}_{session_id}.json"

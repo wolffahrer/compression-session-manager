@@ -59,21 +59,25 @@ r = T(result="ERG", session_id="S1")
 pruefe("K2 ohne Dienst: „erschöpft“, Mensch öffnet selbst", r and "erschöpft" in r and "öffnet die neue Sitzung selbst" in r)
 pruefe("Meldung genau einmal", len(gemeldet) == 1)
 pruefe("erschöpft nochmal: still", T(result="ERG", session_id="S1") is None)
-ENDE(session_id="S1", completed=False, interrupted=True)
-pruefe("abgebrochener Zug: keine Anfrage", not (tmp / "staffel" / "anfragen").exists() or not list((tmp / "staffel" / "anfragen").glob("*.json")))
+ANF = tmp / "staffel" / "anfragen"
+anzahl = lambda: len(list(ANF.glob("*.json"))) if ANF.exists() else 0  # noqa: E731
 ENDE(session_id="S1", completed=True)
-anf = list((tmp / "staffel" / "anfragen").glob("*.json"))
-pruefe("sauberes Zugende: genau eine Anfrage", len(anf) == 1 and json.loads(anf[0].read_text())["session_id"] == "S1")
-ENDE(session_id="S1", completed=True)
-pruefe("zweites Zugende: keine weitere Anfrage", len(list((tmp / "staffel" / "anfragen").glob("*.json"))) == 1)
+pruefe("Dienst lief nicht („Mensch öffnet selbst“): keine Anfrage", anzahl() == 0)
 
-# Sitzung S2 mit laufendem Dienst (Herzschlag) → Hinweis „startet automatisch“
+# Sitzung S2 mit laufendem Dienst (Herzschlag) → Hinweis „startet automatisch“ → Anfrage
 ag2 = types.SimpleNamespace(session_id="S2", context_compressor=types.SimpleNamespace(
     compression_count=2, last_prompt_tokens=20000, context_length=131072, threshold_tokens=110000))
 srv._sessions["y"] = {"agent": ag2, "title": "Zweite"}
 (tmp / "staffel").mkdir(parents=True, exist_ok=True); (tmp / "staffel" / "herzschlag").write_text(str(time.time()))
 r = T(result="ERG", session_id="S2")
 pruefe("K2 mit Dienst: Folgesitzung startet automatisch", r and "startet automatisch" in r)
+ENDE(session_id="S2", completed=False, interrupted=True)
+pruefe("abgebrochener Zug: keine Anfrage", anzahl() == 0)
+ENDE(session_id="S2", completed=True)
+anf = list(ANF.glob("*.json"))
+pruefe("sauberes Zugende: genau eine Anfrage", len(anf) == 1 and json.loads(anf[0].read_text())["session_id"] == "S2")
+ENDE(session_id="S2", completed=True)
+pruefe("zweites Zugende: keine weitere Anfrage", anzahl() == 1)
 
 c.hooks["post_api_request"](session_id="S3", platform="cron")
 srv._sessions["z"] = {"agent": types.SimpleNamespace(session_id="S3", context_compressor=types.SimpleNamespace(

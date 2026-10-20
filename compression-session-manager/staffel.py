@@ -233,6 +233,33 @@ async def bearbeite(draht, anfrage):
     return "ok"
 
 
+def ende_grund(key):
+    """end_reason der Sitzung aus state.db (None = noch offen), oder 'unbekannt'."""
+    try:
+        import sqlite3
+        c = sqlite3.connect(f"file:{HOME / 'state.db'}?mode=ro", uri=True)
+        r = c.execute("select end_reason from sessions where id=?", (key,)).fetchone()
+        return r[0] if r else "unbekannt"
+    except Exception:  # noqa: BLE001
+        return "unbekannt"
+
+
+async def wieder_anbinden(draht):
+    """Nach einem Neuaufbau die eigenen Folgesitzungen wieder an diese Verbindung hängen, damit Hermes sie nicht als
+    Waise abräumt. Nur Sitzungen, die offen sind oder als Waise abgeräumt wurden (ws_orphan_reap). Vom Menschen
+    geschlossene (tui_close usw.) bleiben zu."""
+    for g in zustand_laden().get("gehalten", []):
+        key = g.get("key")
+        grund = ende_grund(key) if key else "unbekannt"
+        if grund not in (None, "ws_orphan_reap"):
+            continue
+        try:
+            r = await draht.rpc("session.resume", {"session_id": key}, timeout=60)
+            log("wieder angebunden:", g.get("titel"), grund or "offen", "→", "ok" if r.get("result") else r.get("error"))
+        except Exception as e:  # noqa: BLE001
+            log("anbinden fehlgeschlagen:", g.get("titel"), e)
+
+
 async def lauf(einmal=False):
     lade_konfig()
     url = os.environ.get("CSM_WS_URL", "ws://127.0.0.1:9119/api/ws") + f"?token={token()}"
@@ -242,10 +269,9 @@ async def lauf(einmal=False):
     while True:
         try:
             if not draht.lebt:
-                # Bewusst kein session.resume alter Sitzungen nach einem Neuaufbau: das würde auch Sitzungen
-                # wiederbeleben, die der Mensch geschlossen hat. Gespeichert bleiben sie ohnehin.
                 await draht.verbinde()
                 log("verbunden")
+                await wieder_anbinden(draht)
             (ordner / "herzschlag").write_text(str(time.time()))
             for anfrage in sorted((ordner / "anfragen").glob("*.json")):
                 try:

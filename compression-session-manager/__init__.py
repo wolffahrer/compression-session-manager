@@ -168,6 +168,15 @@ def _hinweis_erschoepft(m, automatisch):
     )
 
 
+def _hinweis_nach_kompression(m):
+    k = m["zaehler"]
+    return (
+        f"\n\n[Übergabe-Wächter] Kompression {k} ist durch. Bevor du weitermachst: Lies dein Übergabeprotokoll "
+        f"(das neueste `*_K{k}.md` in `{_pfad('ordner')}`) und gleiche es mit der Zusammenfassung ab: Was dort steht und "
+        f"in der Zusammenfassung fehlt (Pfade, IDs, Entscheidungen, offene Mängel), gilt. Danach normal weiter."
+    )
+
+
 def _on_post_api_request(session_id="", platform="", **kwargs):
     if session_id:
         _plattform[session_id] = platform or ""
@@ -195,11 +204,14 @@ def _on_transform_tool_result(result=None, session_id="", **kwargs):
                 _melde(f"[Übergabe-Wächter] Sitzung „{m['titel'] or session_id}“ ist {m['zaehler']}× komprimiert. "
                        + ("Abschlussprotokoll, danach startet die Folgesitzung automatisch." if auto else
                           "Der Agent schreibt das Abschlussprotokoll. Danach bitte eine neue Sitzung mit dem Startsatz öffnen."))
+            elif m["zaehler"] > int(e.get("gesehen", 0)) and m["zaehler"] in e.get("protokoll_vor", []):
+                text = _hinweis_nach_kompression(m)     # nur, wenn es vor dieser Kompression ein Protokoll gab
             else:
                 naechste = m["zaehler"] + 1
                 if m["benutzt"] >= _anteil(m) * m["schwelle"] and naechste not in e.get("protokoll_vor", []):
                     text = _hinweis_protokoll(m, naechste)
                     e.setdefault("protokoll_vor", []).append(naechste)
+            e["gesehen"] = max(int(e.get("gesehen", 0)), m["zaehler"])
             z[session_id] = e
             _speichere(z)
         if text:

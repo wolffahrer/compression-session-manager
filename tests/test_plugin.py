@@ -48,7 +48,11 @@ comp.last_prompt_tokens = 91000
 r = T(result="ERG", session_id="S1")
 pruefe("91k, K0: Hinweis K1", r and "1. Kompression steht bevor" in r and "91.000" in r)
 pruefe("91k nochmal: still", T(result="ERG", session_id="S1") is None)
-comp.compression_count, comp.last_prompt_tokens = 1, 95000
+comp.compression_count, comp.last_prompt_tokens = 1, 40000
+r = T(result="ERG", session_id="S1")
+pruefe("nach K1: einmal „Protokoll lesen“", r and "Kompression 1 ist durch" in r and "_K1.md" in r)
+pruefe("nach K1 nochmal: still", T(result="ERG", session_id="S1") is None)
+comp.last_prompt_tokens = 95000
 r = T(result="ERG", session_id="S1")
 pruefe("95k, K1: Hinweis K2", r and "2. Kompression steht bevor" in r)
 ENDE(session_id="S1", completed=True)

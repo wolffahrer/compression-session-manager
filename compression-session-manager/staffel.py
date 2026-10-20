@@ -169,6 +169,15 @@ def bruecke_umstellen(alt_key, neu_key):
 async def bearbeite(draht, anfrage):
     a = json.loads(anfrage.read_text(encoding="utf-8"))
     sid, alt_titel = a["session_id"], a.get("titel") or ""
+    try:  # Hat das Plugin dem Agenten „Mensch öffnet selbst“ gesagt (Dienst war z. B. eingefroren)? Dann keine Staffel.
+        e = json.loads((HOME / "cache" / "compression_session_manager.json").read_text(encoding="utf-8")).get(sid) or {}
+        if e and e.get("staffel_auto") is False:
+            melde(f"[Staffel] „{alt_titel or sid}“: Der Hinweis sagte „Mensch öffnet selbst“ (Dienst lief in dem Moment nicht). "
+                  f"Keine automatische Folgesitzung, bitte selbst öffnen.")
+            verschiebe(anfrage, "fehler", "Hinweis war manuell")
+            return "fehler"
+    except Exception:  # noqa: BLE001
+        pass
     live = (await draht.rpc("session.active_list", {})).get("result", {}).get("sessions", [])
     alt = next((s for s in live if sid in (s.get("session_key"), s.get("stored_session_id"), s.get("id"))), None)
     if alt and alt.get("status") != "idle":

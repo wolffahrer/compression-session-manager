@@ -149,7 +149,9 @@ def _hinweis_protokoll(m, k_naechste):
         f"`{_pfad('ordner')}/<JJJJ-MM-TT>_<Thema>_K{k_naechste}.md`. Inhalt: Auftrag im Wortlaut, Entscheidungen des Menschen, "
         f"Stand (Dateien mit absoluten Pfaden, Commits, Messwerte), offene Mängel, laufende Hintergrundprozesse, Unteraufträge "
         f"und Jobs mit IDs, Prüfbefehle für den Einstieg, nächste Schritte in Reihenfolge, Startsatz für eine neue Sitzung. "
-        f"Nur Fakten, die du belegt hast, aber keinen belegten Fakt wegkürzen. Danach normal weiter."
+        f"Nur Fakten, die du belegt hast, aber keinen belegten Fakt wegkürzen. Das Protokoll ist eine Sicherung: Du arbeitest "
+        f"danach in DIESER Sitzung normal weiter, die Kompression läuft von allein. Eine neue Sitzung gibt es erst nach dem "
+        f"Hinweis „erschöpft“."
     )
 
 

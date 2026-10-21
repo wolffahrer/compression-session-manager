@@ -143,7 +143,7 @@ def _hinweis_protokoll(m, k_naechste):
     pct = int(100 * m["benutzt"] / max(m["schwelle"], 1))
     b, sw = (f"{x:,}".replace(",", ".") for x in (m["benutzt"], m["schwelle"]))
     return (
-        f"\n\n[Übergabe-Wächter] Kontext bei {b} von {sw} Token ({pct} % der Kompressionsschwelle). "
+        f"\n\n[CSM] Kontext bei {b} von {sw} Token ({pct} % der Kompressionsschwelle). "
         f"Die {k_naechste}. Kompression steht bevor. Bevor du weitermachst: Schließe den laufenden Einzelschritt ab "
         f"(kein halbes Schreiben, kein offener Commit) und schreibe JETZT ein Übergabeprotokoll nach "
         f"`{_pfad('ordner')}/<JJJJ-MM-TT>_<Thema>_K{k_naechste}.md`. Inhalt: Auftrag im Wortlaut, Entscheidungen des Menschen, "
@@ -161,7 +161,7 @@ def _hinweis_erschoepft(m, automatisch):
               "Gib dem Menschen danach in deiner Antwort den Startsatz: „Lies <Pfad> und arbeite die nächsten Schritte ab.“ "
               "Er öffnet die neue Sitzung selbst.")
     return (
-        f"\n\n[Übergabe-Wächter] Diese Sitzung wurde {m['zaehler']}× komprimiert, damit ist sie erschöpft (Regel: nach der "
+        f"\n\n[CSM] Diese Sitzung wurde {m['zaehler']}× komprimiert, damit ist sie erschöpft (Regel: nach der "
         f"2. Kompression neu starten). Beende den laufenden Schritt sauber, starte NICHTS Neues und schreibe das "
         f"Abschlussprotokoll nach `{_pfad('ordner')}/<JJJJ-MM-TT>_<Thema>_Abschluss.md` (Inhalt wie beim Übergabeprotokoll, "
         f"plus „Was in dieser Sitzung verloren gehen könnte“; der Dateiname MUSS auf `_Abschluss.md` enden). {weiter}"
@@ -171,7 +171,7 @@ def _hinweis_erschoepft(m, automatisch):
 def _hinweis_nach_kompression(m):
     k = m["zaehler"]
     return (
-        f"\n\n[Übergabe-Wächter] Kompression {k} ist durch. Bevor du weitermachst: Lies dein Übergabeprotokoll "
+        f"\n\n[CSM] Kompression {k} ist durch. Bevor du weitermachst: Lies dein Übergabeprotokoll "
         f"(das neueste `*_K{k}.md` in `{_pfad('ordner')}`) und gleiche es mit der Zusammenfassung ab: Was dort steht und "
         f"in der Zusammenfassung fehlt (Pfade, IDs, Entscheidungen, offene Mängel), gilt. Danach normal weiter."
     )
@@ -201,7 +201,7 @@ def _on_transform_tool_result(result=None, session_id="", **kwargs):
                 auto = bool(_cfg.get("staffel")) and _staffel_dienst_lebt()
                 text = _hinweis_erschoepft(m, auto)
                 e.update(erschoepft=True, erschoepft_zeit=time.time(), staffel_auto=auto)
-                _melde(f"[Übergabe-Wächter] Sitzung „{m['titel'] or session_id}“ ist {m['zaehler']}× komprimiert. "
+                _melde(f"[CSM] Sitzung „{m['titel'] or session_id}“ ist {m['zaehler']}× komprimiert. "
                        + ("Abschlussprotokoll, danach startet die Folgesitzung automatisch." if auto else
                           "Der Agent schreibt das Abschlussprotokoll. Danach bitte eine neue Sitzung mit dem Startsatz öffnen."))
             elif m["zaehler"] > int(e.get("gesehen", 0)) and m["zaehler"] in e.get("protokoll_vor", []):

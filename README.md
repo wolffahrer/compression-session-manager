@@ -1,6 +1,6 @@
 **English** | [Deutsch](README.de.md)
 
-<p align="center"><img src="assets/signet.png" alt="KI SOUVERÄN" width="96"></p>
+<p align="center"><img src="assets/banner.png" alt="Compression- and Session Manager – Hermes Agent plugin by KI SOUVERÄN" width="100%"></p>
 
 # Compression- and Session Manager
 

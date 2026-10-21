@@ -1,5 +1,7 @@
 [English](README.md) | **Deutsch**
 
+<p align="center"><img src="assets/signet.png" alt="KI SOUVERÄN" width="96"></p>
+
 # Compression- and Session Manager
 
 Hermes-Plugin plus Staffel-Dienst gegen das Vergessen bei der Kontext-Kompression (`compression-session-manager`).
@@ -102,5 +104,13 @@ Am 20.10.2026 in Hermes Desktop (`hermes serve`) mit lokalem Modell:
   Oberflächen findet es keine Sitzung und tut dann nichts.
 - Eine Sitzung, die nur der Dienst hält, läuft bei einem `serve`-Neustart nicht automatisch weiter. Gespeichert
   bleibt sie, und sie lässt sich in der App öffnen.
+
+## KI SOUVERÄN
+
+Lokale, souveräne KI — Videos, Code und ein offenes Tagebuch. Jede Ebene verweist auf die beiden anderen.
+
+- 🎥 **YouTube:** [@kisouveran](https://youtube.com/@kisouveran) — Videos & Reichweite
+- 💻 **GitHub:** [github.com/wolffahrer](https://github.com/wolffahrer) — der Code dahinter
+- 💬 **Telegram:** [t.me/lokale_ki](https://t.me/lokale_ki) — das Tagebuch von Vik & Besen
 
 Lizenz: MIT

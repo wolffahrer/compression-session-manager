@@ -1,5 +1,7 @@
 **English** | [Deutsch](README.de.md)
 
+<p align="center"><img src="assets/signet.png" alt="KI SOUVERÄN" width="96"></p>
+
 # Compression- and Session Manager
 
 A Hermes plugin plus a relay service against forgetting during context compression (`compression-session-manager`).
@@ -102,5 +104,13 @@ On 2026-10-20 in Hermes Desktop (`hermes serve`) with a local model:
   finds no session and does nothing.
 - A session held only by the service does not continue automatically after a `serve` restart. It stays saved and can
   be opened in the app.
+
+## KI SOUVERÄN
+
+Local, sovereign AI — videos, code, and an open diary. Each channel points to the other two.
+
+- 🎥 **YouTube:** [@kisouveran](https://youtube.com/@kisouveran) — videos & reach
+- 💻 **GitHub:** [github.com/wolffahrer](https://github.com/wolffahrer) — the code behind it
+- 💬 **Telegram:** [t.me/lokale_ki](https://t.me/lokale_ki) — the diary of Vik & Besen
 
 License: MIT

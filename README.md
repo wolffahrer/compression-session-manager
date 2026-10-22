@@ -63,7 +63,7 @@ plugins:
       melden: true
       melde_befehl: ""                # optional: a script that receives one text line (e.g. a Telegram notice)
       staffel: true                   # follow-up sessions via staffel.py
-      staffel_max_pro_tag: 3          # at most this many relays per origin session per day
+      staffel_max_pro_tag: 3          # relays per title stem and local calendar day (resets at midnight)
       brueckenziel_datei: ""          # optional: a file holding a session ID that should travel along
       deckel_warnung: true            # warn once per session when threshold_tokens caps a large window
       prune_anteil: 0                 # >0: prune local models from this share of the threshold, cloud APIs never
@@ -106,7 +106,19 @@ running turns. Check: `hermes plugins list | grep compression`, `systemctl --use
 - **No relay without a final protocol:** the service looks for a `*_Abschluss.md` that is newer than “exhausted” and
   larger than 200 bytes. After 15 minutes with no protocol it reports back and gives up.
 - **Daily limit** per origin session (default 3), so nothing runs endlessly. With a paid API model, every relay costs
-  real money.
+  real money. How it counts, exactly:
+  - The counter key is *local calendar date + title stem*. The stem is the session title without the
+    ` · Teil N` suffix, so “IMP”, “IMP · Teil 2” and “IMP · Teil 3” all count against the same stem.
+  - Only relays count. The session you start yourself is free. With the default of 3, one stem can run as
+    origin + Teil 2–4 on a single day, i.e. four sessions.
+  - The date is the machine’s local date (`date.today()` in `staffel.py`). At midnight the counter starts over.
+    A job that runs through the night gets up to 3 relays before midnight and another 3 after it.
+  - Each session works through roughly two to three context windows: the first window, compression 1 (protocol
+    reminder), the second window, compression 2 (“exhausted”), the final protocol, and then the relay. Default
+    settings and a night across midnight therefore come to up to 7 sessions and about 14–21 windows for one task.
+  - When the limit is reached, the service sends a notice (“limit reached”) that includes the path to the final
+    protocol, and it does not open a follow-up session. You open the next session yourself, or raise
+    `staffel_max_pro_tag`.
 - The service never revives closed sessions.
 - The plugin detects whether the service is running via a heartbeat (`<relay_folder>/herzschlag`). The notice to the
   agent adapts accordingly (“starts automatically” or “you open it yourself”).

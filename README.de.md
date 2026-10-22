@@ -63,7 +63,7 @@ plugins:
       melden: true
       melde_befehl: ""                # optional: Skript, das eine Textzeile bekommt (z. B. Telegram-Meldung)
       staffel: true                   # Folgesitzungen über staffel.py
-      staffel_max_pro_tag: 3          # höchstens so viele Staffeln je Ursprungssitzung und Tag
+      staffel_max_pro_tag: 3          # Staffeln je Titelstamm und lokalem Kalendertag (neu ab Mitternacht)
       brueckenziel_datei: ""          # optional: Datei, in der eine Sitzungs-ID steht und mitwandern soll
       deckel_warnung: true            # einmal je Sitzung warnen, wenn threshold_tokens ein großes Fenster kappt
       prune_anteil: 0                 # >0: lokale Modelle prunen ab diesem Anteil der Schwelle, Cloud-APIs nie
@@ -108,7 +108,18 @@ bricht laufende Züge ab. Prüfen: `hermes plugins list | grep compression`, `sy
 - **Ohne Abschlussprotokoll keine Staffel:** Der Dienst sucht `*_Abschluss.md`, das jünger als „erschöpft“ und
   größer als 200 Byte ist. Nach 15 Minuten ohne Protokoll meldet er sich und gibt auf.
 - **Tagesgrenze** je Ursprungssitzung (Standard 3), damit nichts endlos läuft. Mit einem bezahlten API-Modell kostet
-  jede Staffel echtes Geld.
+  jede Staffel echtes Geld. So wird gezählt:
+  - Der Zähler hängt an *lokalem Kalenderdatum + Titelstamm*. Der Stamm ist der Sitzungstitel ohne den Zusatz
+    ` · Teil N`. „IMP“, „IMP · Teil 2“ und „IMP · Teil 3“ zählen also auf denselben Stamm.
+  - Es zählen nur Staffeln, die selbst gestartete Sitzung ist frei. Beim Standard 3 läuft ein Stamm an einem Tag als
+    Ursprung plus Teil 2–4, also in vier Sitzungen.
+  - Maßgeblich ist das lokale Datum des Rechners (`date.today()` in `staffel.py`). Um Mitternacht beginnt der Zähler
+    neu. Eine Arbeit, die durch die Nacht läuft, bekommt vor Mitternacht bis zu 3 Staffeln und danach noch einmal 3.
+  - Jede Sitzung trägt etwa zwei bis drei Kontextfenster: erstes Fenster, Kompression 1 (Protokoll-Hinweis), zweites
+    Fenster, Kompression 2 („erschöpft“), dann das Abschlussprotokoll und die Staffel. Mit den Standardwerten und
+    einer Nacht über Mitternacht sind das für eine Aufgabe bis zu 7 Sitzungen und etwa 14–21 Fenster.
+  - Ist die Grenze erreicht, meldet der Dienst „Grenze erreicht“ mit dem Pfad zum Abschlussprotokoll und legt keine
+    Folgesitzung an. Die nächste Sitzung öffnet dann der Mensch, oder er erhöht `staffel_max_pro_tag`.
 - Der Dienst belebt keine geschlossenen Sitzungen wieder.
 - Ob der Dienst läuft, erkennt das Plugin an einem Herzschlag (`<staffel_ordner>/herzschlag`). Danach richtet sich
   auch der Hinweis an den Agenten („startet automatisch“ oder „Mensch öffnet selbst“).

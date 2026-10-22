@@ -65,7 +65,25 @@ plugins:
       staffel: true                   # follow-up sessions via staffel.py
       staffel_max_pro_tag: 3          # at most this many relays per origin session per day
       brueckenziel_datei: ""          # optional: a file holding a session ID that should travel along
+      deckel_warnung: true            # warn once per session when threshold_tokens caps a large window
 ```
+
+### Local and 1M-context API models side by side
+
+The plugin follows Hermes’s own compression threshold. Hermes computes it as `context window × compression.threshold`,
+capped by `compression.threshold_tokens`. That cap is **global**: a `threshold_tokens: 110000` meant for a local
+131K model also caps a 1M-context API model at 110K, so the session gets compressed twice and relayed long before its
+window is anywhere near full. Use the ratio only and drop the cap:
+
+```yaml
+compression:
+  threshold: 0.84          # 131K local → 110,100 · 1M API model → ~880K
+  threshold_tokens: null   # no absolute cap
+```
+
+Hermes reads this for every new session, no restart needed. Per-model ratios go in `compression.model_thresholds`
+(Hermes raises anything below 75 % on windows under 512K). With `deckel_warnung` the plugin logs a warning (and
+reports via `melde_befehl`) once per session when the cap sets a threshold below half the window.
 
 Then restart `hermes serve` (plugins load only at start), and do it when no session is working. A restart aborts
 running turns. Check: `hermes plugins list | grep compression`, `systemctl --user status csm-staffel`.

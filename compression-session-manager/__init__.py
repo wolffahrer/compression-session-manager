@@ -40,6 +40,7 @@ STANDARD = {
     "staffel_ordner": "~/.hermes/cache/csm_staffel",
     "staffel_max_pro_tag": 3,                 # wird von staffel.py ausgewertet
     "brueckenziel_datei": "",                 # optional, von staffel.py ausgewertet (siehe README)
+    "deckel_warnung": True,                   # warnen, wenn threshold_tokens ein großes Fenster kappt (README)
 }
 _lock = threading.Lock()
 _plattform: dict[str, str] = {}
@@ -103,6 +104,8 @@ def _messwerte(session_id):
     except Exception:  # noqa: BLE001
         benutzt = int(getattr(comp, "last_prompt_tokens", 0) or 0)
     schwelle = int(getattr(comp, "threshold_tokens", 0) or 0) or _cfg["schwelle_fallback"]
+    fenster = int(getattr(comp, "context_length", 0) or 0)
+    deckel = int(getattr(comp, "threshold_tokens_cap", 0) or 0)
     try:
         from tui_gateway.server import _session_live_title
         titel = _session_live_title(s, session_id) or ""
@@ -111,7 +114,24 @@ def _messwerte(session_id):
     t = _test()
     if session_id in (t.get("sitzungen") or []):
         zaehler += int(t.get("zaehler_plus") or 0)
-    return {"zaehler": zaehler, "benutzt": benutzt, "schwelle": schwelle, "titel": titel, "sid": session_id}
+    return {"zaehler": zaehler, "benutzt": benutzt, "schwelle": schwelle, "titel": titel, "sid": session_id,
+            "fenster": fenster, "deckel": deckel}
+
+
+def _deckel_kappt(m):
+    """True, wenn der absolute Deckel (compression.threshold_tokens) die Schwelle setzt und sie unter der Hälfte des
+    Fensters liegt. Typisch: ein Deckel für das lokale Modell gilt global und kappt auch ein 1-Mio-API-Modell."""
+    return bool(m["deckel"] and m["fenster"] and m["schwelle"] == min(m["deckel"], m["fenster"])
+                and m["schwelle"] < 0.5 * m["fenster"])
+
+
+def _warne_deckel(m):
+    b, sw, f = (f"{x:,}".replace(",", ".") for x in (m["deckel"], m["schwelle"], m["fenster"]))
+    text = (f"[CSM] Sitzung „{m['titel'] or m['sid']}“: compression.threshold_tokens = {b} kappt das Fenster von {f} "
+            f"Token, Kompression schon bei {sw}. Für lokale und große API-Modelle nebeneinander den Deckel auf null "
+            f"setzen und nur compression.threshold (Anteil) nutzen, siehe README.")
+    logger.warning("%s", text)
+    _melde(text)
 
 
 def _anteil(m):
@@ -196,6 +216,9 @@ def _on_transform_tool_result(result=None, session_id="", **kwargs):
             e = z.get(session_id, {"protokoll_vor": [], "erschoepft": False})
             e["zeit"] = time.time()
             e["titel"] = m["titel"]
+            if _cfg.get("deckel_warnung") and not e.get("deckel_gewarnt") and _deckel_kappt(m):
+                e["deckel_gewarnt"] = True
+                _warne_deckel(m)
             text = None
             if m["zaehler"] >= int(_cfg["erschoepft_ab"]) and not e.get("erschoepft"):
                 auto = bool(_cfg.get("staffel")) and _staffel_dienst_lebt()

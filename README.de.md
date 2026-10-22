@@ -65,7 +65,26 @@ plugins:
       staffel: true                   # Folgesitzungen über staffel.py
       staffel_max_pro_tag: 3          # höchstens so viele Staffeln je Ursprungssitzung und Tag
       brueckenziel_datei: ""          # optional: Datei, in der eine Sitzungs-ID steht und mitwandern soll
+      deckel_warnung: true            # einmal je Sitzung warnen, wenn threshold_tokens ein großes Fenster kappt
 ```
+
+### Lokale Modelle und 1-Mio-API-Modelle nebeneinander
+
+Das Plugin folgt der Kompressionsschwelle von Hermes. Hermes rechnet `Kontextfenster × compression.threshold`,
+gedeckelt durch `compression.threshold_tokens`. Dieser Deckel gilt **global**: Ein `threshold_tokens: 110000` für ein
+lokales 131K-Modell kappt auch ein API-Modell mit 1 Mio. Fenster bei 110K. Die Sitzung wird dann zweimal komprimiert
+und weitergereicht, lange bevor ihr Fenster voll ist. Deshalb nur den Anteil nutzen und den Deckel weglassen:
+
+```yaml
+compression:
+  threshold: 0.84          # lokal 131K → 110.100 · API-Modell 1 Mio → ~880K
+  threshold_tokens: null   # kein absoluter Deckel
+```
+
+Hermes liest das für jede neue Sitzung, ein Neustart ist nicht nötig. Anteile je Modell gehören in
+`compression.model_thresholds` (bei Fenstern unter 512K hebt Hermes alles unter 75 % an). Mit `deckel_warnung` schreibt
+das Plugin einmal je Sitzung eine Warnung ins Log (und meldet über `melde_befehl`), wenn der Deckel die Schwelle unter
+die Hälfte des Fensters drückt.
 
 Danach `hermes serve` neu starten (Plugins laden nur beim Start), und zwar wenn keine Sitzung arbeitet. Ein Neustart
 bricht laufende Züge ab. Prüfen: `hermes plugins list | grep compression`, `systemctl --user status csm-staffel`.

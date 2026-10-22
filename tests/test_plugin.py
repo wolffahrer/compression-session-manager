@@ -89,5 +89,30 @@ srv._sessions["z"] = {"agent": types.SimpleNamespace(session_id="S3", context_co
 pruefe("Cron-Sitzung: still", T(result="ERG", session_id="S3") is None)
 pruefe("unbekannte Sitzung: still", T(result="ERG", session_id="nix") is None)
 pruefe("Ergebnis kein Text: still", T(result={"a": 1}, session_id="S1") is None)
+
+# Globaler Deckel 110K kappt ein 1-Mio-Fenster → einmal warnen; ohne Deckel (null) still
+vorher = len(gemeldet)
+srv._sessions["g"] = {"agent": types.SimpleNamespace(session_id="S4", context_compressor=types.SimpleNamespace(
+    compression_count=0, last_prompt_tokens=30000, context_length=1048576, threshold_tokens=110000,
+    threshold_tokens_cap=110000))}
+T(result="ERG", session_id="S4")
+pruefe("Deckel kappt 1-Mio-Fenster: Warnung", len(gemeldet) == vorher + 1 and "threshold_tokens" in gemeldet[-1])
+T(result="ERG", session_id="S4")
+pruefe("Deckel-Warnung nur einmal", len(gemeldet) == vorher + 1)
+srv._sessions["h"] = {"agent": types.SimpleNamespace(session_id="S5", context_compressor=types.SimpleNamespace(
+    compression_count=0, last_prompt_tokens=30000, context_length=1048576, threshold_tokens=880803,
+    threshold_tokens_cap=None))}
+T(result="ERG", session_id="S5")
+pruefe("ohne Deckel (null), 1 Mio: keine Warnung", len(gemeldet) == vorher + 1)
+comp.threshold_tokens_cap = 110000
+T(result="ERG", session_id="S1")
+pruefe("lokal 131K mit Deckel 110K: keine Warnung", len(gemeldet) == vorher + 1)
+srv._sessions["i"] = {"agent": types.SimpleNamespace(session_id="S6", context_compressor=types.SimpleNamespace(
+    compression_count=0, last_prompt_tokens=700000, context_length=1048576, threshold_tokens=880803,
+    threshold_tokens_cap=None))}
+pruefe("1 Mio ohne Deckel, 700K: noch kein Hinweis", T(result="ERG", session_id="S6") is None)
+srv._sessions["i"]["agent"].context_compressor.last_prompt_tokens = 730000
+r = T(result="ERG", session_id="S6")
+pruefe("1 Mio ohne Deckel: Hinweis erst bei 82 % von 880K", r and "1. Kompression steht bevor" in r and "880.803" in r)
 print("\nALLES GRÜN" if not fehler else f"\n{fehler} FEHLER")
 sys.exit(1 if fehler else 0)

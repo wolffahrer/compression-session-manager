@@ -6,7 +6,8 @@ Läuft der Staffel-Dienst (`staffel.py`, Tandem zu diesem Plugin), startet danac
 Protokoll; sonst öffnet der Mensch sie selbst (der Server kann keine Desktop-Sitzung per `/new` öffnen).
 
 Hooks:
-  post_api_request       merkt sich die Plattform je Sitzung (Cron-Läufe werden ausgelassen)
+  post_api_request       merkt sich die Plattform je Sitzung (Cron-Läufe werden ausgelassen); optional Prune je
+                         Sitzung: lokal an, Cloud-API aus (prune_anteil)
   transform_tool_result  hängt den Hinweis an das nächste Werkzeugergebnis (kommt auch mitten in langen Zügen an)
   on_session_end         nach dem Zug, der auf „erschöpft“ folgt: Staffel-Anfrage für den Dienst ablegen
 Fail-open: Jeder Fehler hier lässt das Ergebnis unverändert. Einstellungen: plugins.entries.compression-session-manager
@@ -14,6 +15,7 @@ in config.yaml (siehe README.md). Lizenz: MIT.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import os
@@ -21,6 +23,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 logger = logging.getLogger("hermes.plugins.compression-session-manager")
 
@@ -41,9 +44,11 @@ STANDARD = {
     "staffel_max_pro_tag": 3,                 # wird von staffel.py ausgewertet
     "brueckenziel_datei": "",                 # optional, von staffel.py ausgewertet (siehe README)
     "deckel_warnung": True,                   # warnen, wenn threshold_tokens ein großes Fenster kappt (README)
+    "prune_anteil": 0.0,                      # >0: lokale Modelle prunen ab Anteil × Schwelle, Cloud-APIs nie (0 = aus)
 }
 _lock = threading.Lock()
 _plattform: dict[str, str] = {}
+_prune_gesehen: set = set()
 _cfg = dict(STANDARD)
 
 
@@ -197,9 +202,46 @@ def _hinweis_nach_kompression(m):
     )
 
 
+def _ist_lokal(base_url):
+    """Endpunkt auf diesem Rechner oder im privaten Netz (llama.cpp, llama-swap, Ollama …)."""
+    try:
+        host = urlparse(str(base_url or "")).hostname or ""
+        if host in ("localhost",) or host.endswith((".localhost", ".local")):
+            return True
+        a = ipaddress.ip_address(host)
+        return a.is_loopback or a.is_private
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _steuere_prune(session_id):
+    """Hermes kennt proactive_prune_tokens nur global. Das Prunen ohne LLM bricht jedes Mal den Prompt-Cache: lokal
+    spart es Kompressionen, bei einer Cloud-API kostet es Geld. Deshalb je Sitzung: lokal Anteil × Schwelle, sonst 0.
+    Wird bei jedem API-Aufruf neu bewertet, damit ein Modellwechsel mitgeht."""
+    anteil = float(_cfg.get("prune_anteil") or 0)
+    if anteil <= 0:
+        return
+    agent, _ = _sitzung(session_id)
+    comp = getattr(agent, "context_compressor", None) if agent else None
+    if comp is None or not hasattr(comp, "proactive_prune_tokens"):
+        return
+    url = getattr(comp, "base_url", "") or getattr(agent, "base_url", "")
+    lokal = _ist_lokal(url)
+    soll = int(anteil * int(getattr(comp, "threshold_tokens", 0) or 0)) if lokal else 0
+    if comp.proactive_prune_tokens != soll or (session_id, url) not in _prune_gesehen:
+        _prune_gesehen.add((session_id, url))
+        comp.proactive_prune_tokens = soll
+        logger.info("%s: proactive_prune_tokens für %s = %s (%s, %s)", NAME, session_id, soll,
+                    "lokal" if lokal else "Cloud", url)
+
+
 def _on_post_api_request(session_id="", platform="", **kwargs):
     if session_id:
         _plattform[session_id] = platform or ""
+        try:
+            _steuere_prune(session_id)
+        except Exception:  # noqa: BLE001
+            logger.debug("%s: Prune-Steuerung fehlgeschlagen", NAME, exc_info=True)
 
 
 def _on_transform_tool_result(result=None, session_id="", **kwargs):

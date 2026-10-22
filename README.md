@@ -66,6 +66,7 @@ plugins:
       staffel_max_pro_tag: 3          # at most this many relays per origin session per day
       brueckenziel_datei: ""          # optional: a file holding a session ID that should travel along
       deckel_warnung: true            # warn once per session when threshold_tokens caps a large window
+      prune_anteil: 0                 # >0: prune local models from this share of the threshold, cloud APIs never
 ```
 
 ### Local and 1M-context API models side by side
@@ -84,6 +85,16 @@ compression:
 Hermes reads this for every new session, no restart needed. Per-model ratios go in `compression.model_thresholds`
 (Hermes raises anything below 75 % on windows under 512K). With `deckel_warnung` the plugin logs a warning (and
 reports via `melde_befehl`) once per session when the cap sets a threshold below half the window.
+
+**Prune local, not in the cloud.** `compression.proactive_prune_tokens` (dropping old tool results without an LLM) is
+global too. Every prune breaks the prompt cache: on a local model that is free and saves compressions, on a cloud API
+it costs money. Set it to `0` globally and let the plugin decide per session with `prune_anteil: 0.86`: if the
+model’s endpoint is local (loopback, private network, `localhost`, `*.local`), the prune trigger becomes 86 % of that
+session’s compression threshold (131K local → ~94,700); for any other endpoint it stays off. It is re-evaluated on
+every API call, so a model switch follows along, and the first decision per session is logged
+(`proactive_prune_tokens für <id> = … (lokal|Cloud, <base_url>)`). If the plugin is not loaded, nothing prunes
+(fail-safe for cost). Like the notices, this covers sessions inside `hermes serve` (desktop sessions and the kanban
+workers it dispatches); a standalone `hermes` CLI process keeps the global value.
 
 Then restart `hermes serve` (plugins load only at start), and do it when no session is working. A restart aborts
 running turns. Check: `hermes plugins list | grep compression`, `systemctl --user status csm-staffel`.

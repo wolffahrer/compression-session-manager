@@ -114,5 +114,25 @@ pruefe("1 Mio ohne Deckel, 700K: noch kein Hinweis", T(result="ERG", session_id=
 srv._sessions["i"]["agent"].context_compressor.last_prompt_tokens = 730000
 r = T(result="ERG", session_id="S6")
 pruefe("1 Mio ohne Deckel: Hinweis erst bei 82 % von 880K", r and "1. Kompression steht bevor" in r and "880.803" in r)
+
+# Prune je Sitzung: lokal Anteil × Schwelle, Cloud aus, ohne prune_anteil unangetastet
+P = c.hooks["post_api_request"]
+lok = types.SimpleNamespace(compression_count=0, last_prompt_tokens=1000, context_length=131072, threshold_tokens=110100,
+                            proactive_prune_tokens=0, base_url="http://127.0.0.1:8081/v1")
+wolke = types.SimpleNamespace(compression_count=0, last_prompt_tokens=1000, context_length=1048576,
+                              threshold_tokens=880803, proactive_prune_tokens=95000,
+                              base_url="https://openrouter.ai/api/v1")
+srv._sessions["p1"] = {"agent": types.SimpleNamespace(session_id="P1", context_compressor=lok)}
+srv._sessions["p2"] = {"agent": types.SimpleNamespace(session_id="P2", context_compressor=wolke)}
+P(session_id="P1", platform="tui")
+pruefe("ohne prune_anteil: Prune unangetastet", lok.proactive_prune_tokens == 0 and wolke.proactive_prune_tokens == 95000)
+csm._cfg["prune_anteil"] = 0.86
+P(session_id="P1", platform="tui"); P(session_id="P2", platform="tui")
+pruefe("lokal (127.0.0.1): Prune = 86 % der Schwelle", lok.proactive_prune_tokens == 94686)
+pruefe("Cloud (openrouter.ai): Prune aus", wolke.proactive_prune_tokens == 0)
+lok.base_url = "https://generativelanguage.googleapis.com/v1beta"; P(session_id="P1", platform="tui")
+pruefe("Modellwechsel lokal → Cloud: Prune aus", lok.proactive_prune_tokens == 0)
+pruefe("LAN 192.168.x und localhost gelten als lokal, leer nicht",
+       csm._ist_lokal("http://192.168.1.5:8080/v1") and csm._ist_lokal("http://localhost:11434") and not csm._ist_lokal(""))
 print("\nALLES GRÜN" if not fehler else f"\n{fehler} FEHLER")
 sys.exit(1 if fehler else 0)

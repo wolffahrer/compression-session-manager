@@ -66,6 +66,7 @@ plugins:
       staffel_max_pro_tag: 3          # höchstens so viele Staffeln je Ursprungssitzung und Tag
       brueckenziel_datei: ""          # optional: Datei, in der eine Sitzungs-ID steht und mitwandern soll
       deckel_warnung: true            # einmal je Sitzung warnen, wenn threshold_tokens ein großes Fenster kappt
+      prune_anteil: 0                 # >0: lokale Modelle prunen ab diesem Anteil der Schwelle, Cloud-APIs nie
 ```
 
 ### Lokale Modelle und 1-Mio-API-Modelle nebeneinander
@@ -85,6 +86,17 @@ Hermes liest das für jede neue Sitzung, ein Neustart ist nicht nötig. Anteile 
 `compression.model_thresholds` (bei Fenstern unter 512K hebt Hermes alles unter 75 % an). Mit `deckel_warnung` schreibt
 das Plugin einmal je Sitzung eine Warnung ins Log (und meldet über `melde_befehl`), wenn der Deckel die Schwelle unter
 die Hälfte des Fensters drückt.
+
+**Lokal prunen, in der Cloud nicht.** Auch `compression.proactive_prune_tokens` (alte Werkzeugergebnisse ohne LLM
+entfernen) gilt global. Jeder Prune bricht den Prompt-Cache. Lokal kostet das nichts und spart Kompressionen, bei einer
+Cloud-API kostet es Geld. Deshalb global auf `0` setzen und das Plugin je Sitzung entscheiden lassen, mit
+`prune_anteil: 0.86`: Ist der Endpunkt des Modells lokal (Loopback, privates Netz, `localhost`, `*.local`), liegt die
+Prune-Grenze bei 86 % der Kompressionsschwelle dieser Sitzung (lokal 131K → ~94.700). Bei jedem anderen Endpunkt bleibt
+der Prune aus. Das Plugin bewertet das bei jedem API-Aufruf neu, ein Modellwechsel geht also mit. Die erste
+Entscheidung je Sitzung steht im Log (`proactive_prune_tokens für <id> = … (lokal|Cloud, <base_url>)`). Ist das Plugin
+nicht geladen, prunt nichts (sicher für die Kosten). Wie die Hinweise wirkt das für Sitzungen in `hermes serve`
+(Desktop-Sitzungen und die Kanban-Worker, die serve startet). Ein eigenständiger `hermes`-CLI-Prozess behält den
+globalen Wert.
 
 Danach `hermes serve` neu starten (Plugins laden nur beim Start), und zwar wenn keine Sitzung arbeitet. Ein Neustart
 bricht laufende Züge ab. Prüfen: `hermes plugins list | grep compression`, `systemctl --user status csm-staffel`.

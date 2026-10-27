@@ -1,5 +1,5 @@
 name: compression-session-manager
-version: "1.0.0"
+version: "1.1.0"
 description: Übergabeprotokoll vor jeder Kontext-Kompression; nach der 2. Kompression Abschlussprotokoll und automatische Folgesitzung (Staffel-Dienst).
 author: KI SOUVERÄN (t.me/lokale_ki)
 license: MIT

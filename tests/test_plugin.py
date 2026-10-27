@@ -70,7 +70,8 @@ pruefe("Dienst lief nicht („Mensch öffnet selbst“): keine Anfrage", anzahl(
 
 # Sitzung S2 mit laufendem Dienst (Herzschlag) → Hinweis „startet automatisch“ → Anfrage
 ag2 = types.SimpleNamespace(session_id="S2", context_compressor=types.SimpleNamespace(
-    compression_count=2, last_prompt_tokens=20000, context_length=131072, threshold_tokens=110000))
+    compression_count=2, last_prompt_tokens=20000, context_length=131072, threshold_tokens=110000,
+    base_url="http://127.0.0.1:8081/v1"))
 srv._sessions["y"] = {"agent": ag2, "title": "Zweite"}
 (tmp / "staffel").mkdir(parents=True, exist_ok=True); (tmp / "staffel" / "herzschlag").write_text(str(time.time()))
 r = T(result="ERG", session_id="S2")
@@ -82,6 +83,26 @@ anf = list(ANF.glob("*.json"))
 pruefe("sauberes Zugende: genau eine Anfrage", len(anf) == 1 and json.loads(anf[0].read_text())["session_id"] == "S2")
 ENDE(session_id="S2", completed=True)
 pruefe("zweites Zugende: keine weitere Anfrage", anzahl() == 1)
+
+# staffel_nur_lokal (Standard): Cloud-Modell oder unbekannter Endpunkt → Mensch öffnet selbst, keine Anfrage
+for sid, url in (("S7", "https://openrouter.ai/api/v1"), ("S8", "")):
+    srv._sessions[sid] = {"agent": types.SimpleNamespace(session_id=sid, context_compressor=types.SimpleNamespace(
+        compression_count=2, last_prompt_tokens=20000, context_length=1048576, threshold_tokens=880803, base_url=url))}
+    vorher = len(gemeldet)
+    r = T(result="ERG", session_id=sid)
+    pruefe(f"{sid} ({url or 'leer'}), Dienst läuft: keine Automatik", r and "öffnet die neue Sitzung selbst" in r
+           and "staffel_nur_lokal" in gemeldet[vorher])
+    ENDE(session_id=sid, completed=True)
+    pruefe(f"{sid}: keine Staffel-Anfrage", anzahl() == 1)
+csm._cfg["staffel_nur_lokal"] = False
+srv._sessions["S9"] = {"agent": types.SimpleNamespace(session_id="S9", context_compressor=types.SimpleNamespace(
+    compression_count=2, last_prompt_tokens=20000, context_length=1048576, threshold_tokens=880803,
+    base_url="https://openrouter.ai/api/v1"))}
+r = T(result="ERG", session_id="S9")
+pruefe("staffel_nur_lokal: false → Cloud startet automatisch", r and "startet automatisch" in r)
+ENDE(session_id="S9", completed=True)
+pruefe("S9: Anfrage abgelegt", anzahl() == 2)
+csm._cfg["staffel_nur_lokal"] = True
 
 c.hooks["post_api_request"](session_id="S3", platform="cron")
 srv._sessions["z"] = {"agent": types.SimpleNamespace(session_id="S3", context_compressor=types.SimpleNamespace(

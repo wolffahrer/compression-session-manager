@@ -6,6 +6,16 @@
 
 Hermes-Plugin plus Staffel-Dienst gegen das Vergessen bei der Kontext-Kompression (`compression-session-manager`).
 
+> **Zwei Stufen, du wählst.**
+>
+> **Stufe 1 – nur das Plugin:** Übergabeprotokoll vor jeder Kompression und der Hinweis „erschöpft“. Kein
+> zusätzlicher Dienst, keine zusätzlichen Sitzungen, keine Zusatzkosten. Einbau heißt einmal `hermes serve` neu
+> starten, wie bei jedem Plugin.
+>
+> **Stufe 2 – plus Staffel-Dienst (`staffel.py`, optional):** Nach einer erschöpften Sitzung startet automatisch eine
+> Folgesitzung, auch nachts. Standardmäßig nur mit **lokalem** Modell (`staffel_nur_lokal: true`); bei einer
+> Cloud-API öffnest du die nächste Sitzung selbst, die Staffel gibt also nie ungefragt Geld aus.
+
 Lange Agenten-Sitzungen werden irgendwann komprimiert. Was dabei wegfällt, ist weg, und nach mehreren Kompressionen
 arbeitet der Agent spürbar schlechter. Dieses Paket setzt eine einfache Regel durch und lässt den Agenten dabei
 weiterarbeiten, auch wenn du nicht am Rechner bist:
@@ -41,8 +51,15 @@ Fehler im Plugin lassen alles unverändert (fail-open).
 
 ## Einbau
 
+Stufe 1 (nur Plugin):
+
 ```bash
 cp -r compression-session-manager ~/.hermes/plugins/
+```
+
+Stufe 2 (optional, dazu der Staffel-Dienst):
+
+```bash
 cp ~/.hermes/plugins/compression-session-manager/csm-staffel.service ~/.config/systemd/user/
 # in der .service-Datei ExecStart auf das Python von Hermes zeigen lassen (braucht websockets + yaml)
 systemctl --user daemon-reload && systemctl --user enable --now csm-staffel.service
@@ -64,6 +81,7 @@ plugins:
       melde_befehl: ""                # optional: Skript, das eine Textzeile bekommt (z. B. Telegram-Meldung)
       staffel: true                   # Folgesitzungen über staffel.py
       staffel_max_pro_tag: 3          # Staffeln je Titelstamm und lokalem Kalendertag (neu ab Mitternacht)
+      staffel_nur_lokal: true         # automatische Staffel nur mit lokalem Modell; Cloud-API: Mensch öffnet selbst
       brueckenziel_datei: ""          # optional: Datei, in der eine Sitzungs-ID steht und mitwandern soll
       deckel_warnung: true            # einmal je Sitzung warnen, wenn threshold_tokens ein großes Fenster kappt
       prune_anteil: 0                 # >0: lokale Modelle prunen ab diesem Anteil der Schwelle, Cloud-APIs nie
@@ -120,6 +138,11 @@ bricht laufende Züge ab. Prüfen: `hermes plugins list | grep compression`, `sy
     einer Nacht über Mitternacht sind das für eine Aufgabe bis zu 7 Sitzungen und etwa 14–21 Fenster.
   - Ist die Grenze erreicht, meldet der Dienst „Grenze erreicht“ mit dem Pfad zum Abschlussprotokoll und legt keine
     Folgesitzung an. Die nächste Sitzung öffnet dann der Mensch, oder er erhöht `staffel_max_pro_tag`.
+- **Nur lokale Modelle (`staffel_nur_lokal: true`, Standard):** Eine automatische Folgesitzung startet nur, wenn der
+  Endpunkt des Modells lokal ist (Loopback, privates Netz, `localhost`, `*.local`), dieselbe Prüfung wie beim Prunen.
+  Bei einer Cloud-API oder unbekanntem Endpunkt schreibt der Agent trotzdem das Abschlussprotokoll, du bekommst aber
+  den Startsatz und öffnest die nächste Sitzung selbst. Tailscale-Adressen (`100.x`, `*.ts.net`) gelten als Cloud.
+  Nur auf `false` setzen, wenn du bezahlte Staffeln bewusst willst; dann deckelt sie die Tagesgrenze.
 - Der Dienst belebt keine geschlossenen Sitzungen wieder.
 - Ob der Dienst läuft, erkennt das Plugin an einem Herzschlag (`<staffel_ordner>/herzschlag`). Danach richtet sich
   auch der Hinweis an den Agenten („startet automatisch“ oder „Mensch öffnet selbst“).
@@ -143,7 +166,8 @@ Am 20.10.2026 in Hermes Desktop (`hermes serve`) mit lokalem Modell:
 - Ein Zug ganz ohne Werkzeugaufrufe bekommt den Hinweis erst beim nächsten Werkzeugaufruf.
 - Wie gut das Protokoll wird, hängt am Modell.
 - Das Plugin liest den Kompressor über `tui_gateway.server._sessions` (Hermes Desktop/serve). In anderen
-  Oberflächen findet es keine Sitzung und tut dann nichts.
+  Oberflächen findet es keine Sitzung und tut dann nichts. Das gilt auch für das Messenger-Gateway: **Über Telegram
+  wirkt das Plugin derzeit nicht.**
 - Eine Sitzung, die nur der Dienst hält, läuft bei einem `serve`-Neustart nicht automatisch weiter. Gespeichert
   bleibt sie, und sie lässt sich in der App öffnen.
 

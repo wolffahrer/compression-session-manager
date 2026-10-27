@@ -3,7 +3,8 @@
 Regel: Vor jeder Kontext-Kompression schreibt der Agent ein Übergabeprotokoll, damit nichts verloren geht. Nach der
 2. Kompression gilt die Sitzung als erschöpft: Der Agent beendet den Schritt sauber und schreibt ein Abschlussprotokoll.
 Läuft der Staffel-Dienst (`staffel.py`, Tandem zu diesem Plugin), startet danach automatisch eine Folgesitzung mit dem
-Protokoll; sonst öffnet der Mensch sie selbst (der Server kann keine Desktop-Sitzung per `/new` öffnen).
+Protokoll; sonst öffnet der Mensch sie selbst (der Server kann keine Desktop-Sitzung per `/new` öffnen). Mit
+staffel_nur_lokal (Standard) gibt es die automatische Folgesitzung nur bei einem lokalen Modell, nie bei einer Cloud-API.
 
 Hooks:
   post_api_request       merkt sich die Plattform je Sitzung (Cron-Läufe werden ausgelassen); optional Prune je
@@ -42,6 +43,7 @@ STANDARD = {
     "staffel": True,                          # Staffel-Anfragen für staffel.py ablegen
     "staffel_ordner": "~/.hermes/cache/csm_staffel",
     "staffel_max_pro_tag": 3,                 # wird von staffel.py ausgewertet
+    "staffel_nur_lokal": True,                # Folgesitzungen nur bei lokalem Modell, Cloud-APIs öffnet der Mensch
     "brueckenziel_datei": "",                 # optional, von staffel.py ausgewertet (siehe README)
     "deckel_warnung": True,                   # warnen, wenn threshold_tokens ein großes Fenster kappt (README)
     "prune_anteil": 0.0,                      # >0: lokale Modelle prunen ab Anteil × Schwelle, Cloud-APIs nie (0 = aus)
@@ -214,6 +216,18 @@ def _ist_lokal(base_url):
         return False
 
 
+def _endpunkt(agent, comp):
+    return getattr(comp, "base_url", "") or getattr(agent, "base_url", "")
+
+
+def _staffel_erlaubt(session_id):
+    """Kostenbremse: Mit staffel_nur_lokal startet die Staffel nur bei lokalem Endpunkt. Unbekannt gilt als Cloud."""
+    if not _cfg.get("staffel_nur_lokal"):
+        return True
+    agent, _ = _sitzung(session_id)
+    return _ist_lokal(_endpunkt(agent, getattr(agent, "context_compressor", None)))
+
+
 def _steuere_prune(session_id):
     """Hermes kennt proactive_prune_tokens nur global. Das Prunen ohne LLM bricht jedes Mal den Prompt-Cache: lokal
     spart es Kompressionen, bei einer Cloud-API kostet es Geld. Deshalb je Sitzung: lokal Anteil × Schwelle, sonst 0.
@@ -225,7 +239,7 @@ def _steuere_prune(session_id):
     comp = getattr(agent, "context_compressor", None) if agent else None
     if comp is None or not hasattr(comp, "proactive_prune_tokens"):
         return
-    url = getattr(comp, "base_url", "") or getattr(agent, "base_url", "")
+    url = _endpunkt(agent, comp)
     lokal = _ist_lokal(url)
     soll = int(anteil * int(getattr(comp, "threshold_tokens", 0) or 0)) if lokal else 0
     if comp.proactive_prune_tokens != soll or (session_id, url) not in _prune_gesehen:
@@ -263,12 +277,18 @@ def _on_transform_tool_result(result=None, session_id="", **kwargs):
                 _warne_deckel(m)
             text = None
             if m["zaehler"] >= int(_cfg["erschoepft_ab"]) and not e.get("erschoepft"):
-                auto = bool(_cfg.get("staffel")) and _staffel_dienst_lebt()
+                dienst = bool(_cfg.get("staffel")) and _staffel_dienst_lebt()
+                cloud = dienst and not _staffel_erlaubt(session_id)
+                auto = dienst and not cloud
                 text = _hinweis_erschoepft(m, auto)
                 e.update(erschoepft=True, erschoepft_zeit=time.time(), staffel_auto=auto)
                 _melde(f"[CSM] Sitzung „{m['titel'] or session_id}“ ist {m['zaehler']}× komprimiert. "
                        + ("Abschlussprotokoll, danach startet die Folgesitzung automatisch." if auto else
-                          "Der Agent schreibt das Abschlussprotokoll. Danach bitte eine neue Sitzung mit dem Startsatz öffnen."))
+                          "Der Agent schreibt das Abschlussprotokoll. Danach bitte eine neue Sitzung mit dem Startsatz öffnen."
+                          + (" Keine automatische Folgesitzung, weil das Modell kein lokales ist (staffel_nur_lokal)."
+                             if cloud else "")))
+                if cloud:
+                    logger.info("%s: keine Staffel für %s, Endpunkt nicht lokal (staffel_nur_lokal)", NAME, session_id)
             elif m["zaehler"] > int(e.get("gesehen", 0)) and m["zaehler"] in e.get("protokoll_vor", []):
                 text = _hinweis_nach_kompression(m)     # nur, wenn es vor dieser Kompression ein Protokoll gab
             else:

@@ -6,6 +6,15 @@
 
 A Hermes plugin plus a relay service against forgetting during context compression (`compression-session-manager`).
 
+> **Two levels, pick one.**
+>
+> **Level 1 – plugin only:** handoff protocols before every compression and the “exhausted” notice. No extra
+> service, no extra sessions, no extra cost. Installing it means one `hermes serve` restart, like any plugin.
+>
+> **Level 2 – plus relay service (`staffel.py`, optional):** after an exhausted session a follow-up session starts
+> automatically, also at night. By default only with a **local** model (`staffel_nur_lokal: true`); with a cloud API
+> you open the next session yourself, so the relay never spends money unasked.
+
 Long agent sessions eventually get compressed. Whatever drops out is gone, and after several compressions the agent
 works noticeably worse. This package enforces one simple rule and keeps the agent working through it, even when you
 are away from the keyboard:
@@ -41,8 +50,15 @@ the plugin leave everything unchanged (fail-open).
 
 ## Installation
 
+Level 1 (plugin only):
+
 ```bash
 cp -r compression-session-manager ~/.hermes/plugins/
+```
+
+Level 2 (optional, adds the relay service):
+
+```bash
 cp ~/.hermes/plugins/compression-session-manager/csm-staffel.service ~/.config/systemd/user/
 # in the .service file, point ExecStart at Hermes’s Python (needs websockets + yaml)
 systemctl --user daemon-reload && systemctl --user enable --now csm-staffel.service
@@ -64,6 +80,7 @@ plugins:
       melde_befehl: ""                # optional: a script that receives one text line (e.g. a Telegram notice)
       staffel: true                   # follow-up sessions via staffel.py
       staffel_max_pro_tag: 3          # relays per title stem and local calendar day (resets at midnight)
+      staffel_nur_lokal: true         # automatic relays only with a local model; cloud APIs: you open it yourself
       brueckenziel_datei: ""          # optional: a file holding a session ID that should travel along
       deckel_warnung: true            # warn once per session when threshold_tokens caps a large window
       prune_anteil: 0                 # >0: prune local models from this share of the threshold, cloud APIs never
@@ -119,6 +136,11 @@ running turns. Check: `hermes plugins list | grep compression`, `systemctl --use
   - When the limit is reached, the service sends a notice (“limit reached”) that includes the path to the final
     protocol, and it does not open a follow-up session. You open the next session yourself, or raise
     `staffel_max_pro_tag`.
+- **Local models only (`staffel_nur_lokal: true`, default):** an automatic follow-up session starts only when the
+  session’s model endpoint is local (loopback, private network, `localhost`, `*.local`), the same check as for
+  pruning. With a cloud API or an unknown endpoint the agent still writes the final protocol, but you get the opening
+  sentence and open the next session yourself. Tailscale addresses (`100.x`, `*.ts.net`) count as cloud. Set it to
+  `false` only if you knowingly want paid relays; the daily limit then caps them.
 - The service never revives closed sessions.
 - The plugin detects whether the service is running via a heartbeat (`<relay_folder>/herzschlag`). The notice to the
   agent adapts accordingly (“starts automatically” or “you open it yourself”).
@@ -142,7 +164,8 @@ On 2026-10-20 in Hermes Desktop (`hermes serve`) with a local model:
 - A turn with no tool calls at all gets the notice only at the next tool call.
 - How good the protocol turns out depends on the model.
 - The plugin reads the compressor via `tui_gateway.server._sessions` (Hermes Desktop/serve). On other frontends it
-  finds no session and does nothing.
+  finds no session and does nothing. That includes the messaging gateway: **on Telegram the plugin currently has no
+  effect.**
 - A session held only by the service does not continue automatically after a `serve` restart. It stays saved and can
   be opened in the app.
 
